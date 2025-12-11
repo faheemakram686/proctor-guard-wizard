@@ -2,10 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { AlertTriangle, ChevronLeft, ChevronRight, Clock, Flag, Send, Camera } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, Clock, Flag, Send, Camera, Monitor } from 'lucide-react';
 import { useCamera } from '@/hooks/useCamera';
 import { useExamTimer } from '@/hooks/useExamTimer';
 import { useProctoring } from '@/hooks/useProctoring';
+import { useScreenShare } from '@/hooks/useScreenShare';
+import { useCameraBroadcast } from '@/hooks/useCameraBroadcast';
+import { useAdminNotifications } from '@/hooks/useAdminNotifications';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import type { Exam, ExamQuestion, ExamAttempt } from '@/types/exam';
@@ -23,8 +26,33 @@ export function ExamInterface({ exam, attempt, onComplete }: ExamInterfaceProps)
   const [flagged, setFlagged] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [proctoringAlerts, setProctoringAlerts] = useState<string[]>([]);
+  const [isTerminated, setIsTerminated] = useState(false);
 
   const { videoRef, startCamera, isActive } = useCamera();
+  const { isSharing, startSharing, error: screenShareError } = useScreenShare({ 
+    attemptId: attempt.id,
+    frameInterval: 1500 
+  });
+
+  // Broadcast camera frames to admin
+  useCameraBroadcast({
+    attemptId: attempt.id,
+    videoRef,
+    isActive,
+    frameInterval: 1500,
+  });
+
+  // Listen for admin notifications
+  useAdminNotifications({
+    attemptId: attempt.id,
+    onTerminate: () => {
+      setIsTerminated(true);
+      onComplete(0, false);
+    },
+    onComplete: () => {
+      handleSubmit();
+    },
+  });
 
   const handleTimeUp = useCallback(() => {
     toast({
@@ -62,10 +90,29 @@ export function ExamInterface({ exam, attempt, onComplete }: ExamInterfaceProps)
       setQuestions(data as ExamQuestion[]);
     };
 
+    const createProctoringSession = async () => {
+      await supabase.from('proctoring_sessions').upsert({
+        attempt_id: attempt.id,
+        student_id: attempt.student_id,
+        is_active: true,
+      }, { onConflict: 'attempt_id' });
+    };
+
     loadQuestions();
     startCamera();
     startTimer();
-  }, [exam.id, startCamera, startTimer]);
+    createProctoringSession();
+  }, [exam.id, attempt.id, attempt.student_id, startCamera, startTimer]);
+
+  // Prompt for screen share after camera is ready
+  useEffect(() => {
+    if (isActive && !isSharing && !screenShareError) {
+      const timer = setTimeout(() => {
+        startSharing();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isActive, isSharing, screenShareError, startSharing]);
 
   const currentQuestion = questions[currentIndex];
   const progress = ((currentIndex + 1) / questions.length) * 100;
@@ -184,6 +231,12 @@ export function ExamInterface({ exam, attempt, onComplete }: ExamInterfaceProps)
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-success animate-pulse' : 'bg-destructive'}`} />
                 <Camera className="w-4 h-4" />
+              </div>
+
+              {/* Screen share indicator */}
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className={`w-2 h-2 rounded-full ${isSharing ? 'bg-success animate-pulse' : 'bg-warning'}`} />
+                <Monitor className="w-4 h-4" />
               </div>
             </div>
           </div>

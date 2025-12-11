@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_actions: {
+        Row: {
+          action_type: string
+          admin_id: string
+          attempt_id: string
+          created_at: string
+          id: string
+          message: string | null
+        }
+        Insert: {
+          action_type: string
+          admin_id: string
+          attempt_id: string
+          created_at?: string
+          id?: string
+          message?: string | null
+        }
+        Update: {
+          action_type?: string
+          admin_id?: string
+          attempt_id?: string
+          created_at?: string
+          id?: string
+          message?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_actions_attempt_id_fkey"
+            columns: ["attempt_id"]
+            isOneToOne: false
+            referencedRelation: "exam_attempts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exam_answers: {
         Row: {
           answered_at: string
@@ -219,6 +254,54 @@ export type Database = {
           },
         ]
       }
+      proctoring_sessions: {
+        Row: {
+          attempt_id: string
+          camera_stream_id: string | null
+          ended_at: string | null
+          id: string
+          is_active: boolean
+          screen_stream_id: string | null
+          started_at: string
+          student_id: string
+        }
+        Insert: {
+          attempt_id: string
+          camera_stream_id?: string | null
+          ended_at?: string | null
+          id?: string
+          is_active?: boolean
+          screen_stream_id?: string | null
+          started_at?: string
+          student_id: string
+        }
+        Update: {
+          attempt_id?: string
+          camera_stream_id?: string | null
+          ended_at?: string | null
+          id?: string
+          is_active?: boolean
+          screen_stream_id?: string | null
+          started_at?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proctoring_sessions_attempt_id_fkey"
+            columns: ["attempt_id"]
+            isOneToOne: true
+            referencedRelation: "exam_attempts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proctoring_sessions_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       students: {
         Row: {
           created_at: string
@@ -227,6 +310,7 @@ export type Database = {
           id: string
           national_id: string
           profile_image_url: string | null
+          user_id: string | null
         }
         Insert: {
           created_at?: string
@@ -235,6 +319,7 @@ export type Database = {
           id?: string
           national_id: string
           profile_image_url?: string | null
+          user_id?: string | null
         }
         Update: {
           created_at?: string
@@ -243,6 +328,28 @@ export type Database = {
           id?: string
           national_id?: string
           profile_image_url?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
         }
         Relationships: []
       }
@@ -251,10 +358,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "student"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -381,6 +494,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "student"],
+    },
   },
 } as const
