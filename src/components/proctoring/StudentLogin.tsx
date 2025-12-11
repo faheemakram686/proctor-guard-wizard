@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -127,6 +128,14 @@ export function StudentLogin({ onLogin }: StudentLoginProps) {
             <p className="text-center text-xs text-muted-foreground">
               This is a proctored examination. Your camera and microphone will be used for identity verification and monitoring.
             </p>
+
+            <div className="pt-4 border-t border-border">
+              <Link to="/admin/auth" className="block">
+                <Button variant="ghost" className="w-full text-muted-foreground hover:text-foreground">
+                  Admin Portal →
+                </Button>
+              </Link>
+            </div>
           </form>
         </CardContent>
       </Card>
