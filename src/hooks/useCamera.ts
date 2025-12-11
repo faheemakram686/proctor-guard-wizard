@@ -7,6 +7,14 @@ export function useCamera() {
   const [error, setError] = useState<string | null>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
 
+  // Attach stream to video element when both are available
+  useEffect(() => {
+    if (videoRef.current && streamRef.current && isActive) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(console.error);
+    }
+  }, [isActive]);
+
   const startCamera = useCallback(async () => {
     try {
       setError(null);
@@ -17,8 +25,10 @@ export function useCamera() {
       
       streamRef.current = stream;
       
+      // Try to attach immediately if video element exists
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(console.error);
       }
       
       setIsActive(true);
