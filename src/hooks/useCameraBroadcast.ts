@@ -17,12 +17,16 @@ export function useCameraBroadcast({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const intervalRef = useRef<number | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const isSubscribedRef = useRef(false);
 
   const captureFrame = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return null;
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
+
+    // Ensure video has valid dimensions
+    if (!video.videoWidth || !video.videoHeight) return null;
 
     canvas.width = video.videoWidth || 640;
     canvas.height = video.videoHeight || 480;
@@ -35,8 +39,13 @@ export function useCameraBroadcast({
   }, [videoRef]);
 
   const sendFrame = useCallback(async () => {
+    if (!isSubscribedRef.current || !channelRef.current) {
+      console.log('Channel not ready for camera broadcast');
+      return;
+    }
+    
     const frame = captureFrame();
-    if (frame && channelRef.current) {
+    if (frame) {
       try {
         await channelRef.current.send({
           type: 'broadcast',
@@ -55,12 +64,18 @@ export function useCameraBroadcast({
     // Create canvas for frame capture
     canvasRef.current = document.createElement('canvas');
 
-    // Set up broadcast channel
+    // Set up broadcast channel - use the same channel name as screen share
     channelRef.current = supabase.channel(`stream-${attemptId}`);
-    await channelRef.current.subscribe();
-
-    // Start sending frames
-    intervalRef.current = window.setInterval(sendFrame, frameInterval);
+    
+    // Subscribe to channel first, then start sending
+    channelRef.current.subscribe((status) => {
+      console.log('Camera broadcast channel status:', status);
+      if (status === 'SUBSCRIBED') {
+        isSubscribedRef.current = true;
+        // Start sending frames after subscription is confirmed
+        intervalRef.current = window.setInterval(sendFrame, frameInterval);
+      }
+    });
   }, [attemptId, isActive, frameInterval, sendFrame]);
 
   const stopBroadcast = useCallback(() => {
@@ -73,6 +88,8 @@ export function useCameraBroadcast({
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
+    
+    isSubscribedRef.current = false;
   }, []);
 
   useEffect(() => {
