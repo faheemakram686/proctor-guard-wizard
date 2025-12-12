@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -6,8 +6,7 @@ import { AlertTriangle, ChevronLeft, ChevronRight, Clock, Flag, Send, Camera, Mo
 import { useCamera } from '@/hooks/useCamera';
 import { useExamTimer } from '@/hooks/useExamTimer';
 import { useProctoring } from '@/hooks/useProctoring';
-import { useScreenShare } from '@/hooks/useScreenShare';
-import { useCameraBroadcast } from '@/hooks/useCameraBroadcast';
+import { useStreamBroadcast } from '@/hooks/useStreamBroadcast';
 import { useAdminNotifications } from '@/hooks/useAdminNotifications';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
@@ -29,17 +28,17 @@ export function ExamInterface({ exam, attempt, onComplete }: ExamInterfaceProps)
   const [isTerminated, setIsTerminated] = useState(false);
 
   const { videoRef, startCamera, isActive } = useCamera();
-  const { isSharing, startSharing, error: screenShareError } = useScreenShare({ 
+  
+  // Unified stream broadcast hook for both screen and camera
+  const { 
+    isScreenSharing, 
+    screenError, 
+    startScreenShare, 
+    startCameraBroadcast,
+    isChannelReady 
+  } = useStreamBroadcast({ 
     attemptId: attempt.id,
     frameInterval: 1500 
-  });
-
-  // Broadcast camera frames to admin
-  useCameraBroadcast({
-    attemptId: attempt.id,
-    videoRef,
-    isActive,
-    frameInterval: 1500,
   });
 
   // Listen for admin notifications
@@ -104,15 +103,21 @@ export function ExamInterface({ exam, attempt, onComplete }: ExamInterfaceProps)
     createProctoringSession();
   }, [exam.id, attempt.id, attempt.student_id, startCamera, startTimer]);
 
-  // Prompt for screen share after camera is ready
+  // Start camera broadcast and prompt for screen share after camera is ready
   useEffect(() => {
-    if (isActive && !isSharing && !screenShareError) {
+    if (isActive && videoRef.current) {
+      startCameraBroadcast(videoRef.current);
+    }
+  }, [isActive, videoRef, startCameraBroadcast]);
+
+  useEffect(() => {
+    if (isActive && isChannelReady && !isScreenSharing && !screenError) {
       const timer = setTimeout(() => {
-        startSharing();
+        startScreenShare();
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [isActive, isSharing, screenShareError, startSharing]);
+  }, [isActive, isChannelReady, isScreenSharing, screenError, startScreenShare]);
 
   const currentQuestion = questions[currentIndex];
   const progress = ((currentIndex + 1) / questions.length) * 100;
@@ -235,7 +240,7 @@ export function ExamInterface({ exam, attempt, onComplete }: ExamInterfaceProps)
 
               {/* Screen share indicator */}
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className={`w-2 h-2 rounded-full ${isSharing ? 'bg-success animate-pulse' : 'bg-warning'}`} />
+                <div className={`w-2 h-2 rounded-full ${isScreenSharing ? 'bg-success animate-pulse' : 'bg-warning'}`} />
                 <Monitor className="w-4 h-4" />
               </div>
             </div>
