@@ -14,12 +14,16 @@ export function useScreenShare({ attemptId, frameInterval = 1000 }: UseScreenSha
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const intervalRef = useRef<number | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const isSubscribedRef = useRef(false);
 
   const captureFrame = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return null;
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
+    
+    // Ensure video has valid dimensions
+    if (!video.videoWidth || !video.videoHeight) return null;
     
     canvas.width = Math.min(video.videoWidth, 1280);
     canvas.height = Math.min(video.videoHeight, 720);
@@ -32,13 +36,22 @@ export function useScreenShare({ attemptId, frameInterval = 1000 }: UseScreenSha
   }, []);
 
   const sendFrame = useCallback(async () => {
+    if (!isSubscribedRef.current || !channelRef.current) {
+      console.log('Channel not ready for screen share');
+      return;
+    }
+    
     const frame = captureFrame();
-    if (frame && channelRef.current) {
-      await channelRef.current.send({
-        type: 'broadcast',
-        event: 'screen-frame',
-        payload: { frame },
-      });
+    if (frame) {
+      try {
+        await channelRef.current.send({
+          type: 'broadcast',
+          event: 'screen-frame',
+          payload: { frame },
+        });
+      } catch (err) {
+        console.error('Failed to send screen frame:', err);
+      }
     }
   }, [captureFrame]);
 
@@ -70,15 +83,21 @@ export function useScreenShare({ attemptId, frameInterval = 1000 }: UseScreenSha
 
       // Set up broadcast channel
       channelRef.current = supabase.channel(`stream-${attemptId}`);
-      await channelRef.current.subscribe();
+      
+      // Subscribe to channel first, then start sending
+      channelRef.current.subscribe((status) => {
+        console.log('Screen share channel status:', status);
+        if (status === 'SUBSCRIBED') {
+          isSubscribedRef.current = true;
+          // Start sending frames after subscription is confirmed
+          intervalRef.current = window.setInterval(sendFrame, frameInterval);
+        }
+      });
 
       // Handle stream end
       stream.getVideoTracks()[0].onended = () => {
         stopSharing();
       };
-
-      // Start sending frames
-      intervalRef.current = window.setInterval(sendFrame, frameInterval);
 
       setIsSharing(true);
       return true;
@@ -105,6 +124,8 @@ export function useScreenShare({ attemptId, frameInterval = 1000 }: UseScreenSha
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
+    
+    isSubscribedRef.current = false;
 
     if (videoRef.current) {
       videoRef.current.srcObject = null;

@@ -79,12 +79,16 @@ export function LiveProctoringView({ session, onBack }: LiveProctoringViewProps)
     const streamChannel = supabase
       .channel(`stream-${session.attempt_id}`)
       .on('broadcast', { event: 'screen-frame' }, (payload) => {
+        console.log('Received screen frame');
         setScreenStream(payload.payload.frame);
       })
       .on('broadcast', { event: 'camera-frame' }, (payload) => {
+        console.log('Received camera frame');
         setCameraStream(payload.payload.frame);
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Admin stream channel status:', status);
+      });
 
     return () => {
       supabase.removeChannel(flagChannel);
