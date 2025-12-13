@@ -77,17 +77,21 @@ export function LiveProctoringView({ session, onBack }: LiveProctoringViewProps)
 
     // Subscribe to stream updates via Supabase Realtime broadcast
     const streamChannel = supabase
-      .channel(`stream-${session.attempt_id}`)
+      .channel('proctoring-stream')
       .on('broadcast', { event: 'screen-frame' }, (payload) => {
-        console.log('Received screen frame');
-        setScreenStream(payload.payload.frame);
+        const { attemptId, frame } = payload.payload || {};
+        if (attemptId !== session.attempt_id) return;
+        console.log('Received screen frame for attempt', attemptId);
+        setScreenStream(frame);
       })
       .on('broadcast', { event: 'camera-frame' }, (payload) => {
-        console.log('Received camera frame');
-        setCameraStream(payload.payload.frame);
+        const { attemptId, frame } = payload.payload || {};
+        if (attemptId !== session.attempt_id) return;
+        console.log('Received camera frame for attempt', attemptId);
+        setCameraStream(frame);
       })
       .subscribe((status) => {
-        console.log('Admin stream channel status:', status);
+        console.log('Admin stream channel status (proctoring-stream):', status);
       });
 
     return () => {

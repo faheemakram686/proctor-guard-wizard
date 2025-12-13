@@ -38,7 +38,7 @@ export function useStreamBroadcast({
   useEffect(() => {
     if (!attemptId) return;
 
-    channelRef.current = supabase.channel(`stream-${attemptId}`);
+    channelRef.current = supabase.channel('proctoring-stream');
     
     channelRef.current.subscribe((status) => {
       console.log('Stream broadcast channel status:', status);
@@ -81,7 +81,7 @@ export function useStreamBroadcast({
           await channelRef.current.send({
             type: 'broadcast',
             event: 'screen-frame',
-            payload: { frame },
+            payload: { attemptId, frame },
           });
         } catch (err) {
           console.error('Failed to send screen frame:', err);
@@ -103,7 +103,7 @@ export function useStreamBroadcast({
           await channelRef.current.send({
             type: 'broadcast',
             event: 'camera-frame',
-            payload: { frame },
+            payload: { attemptId, frame },
           });
         } catch (err) {
           console.error('Failed to send camera frame:', err);
